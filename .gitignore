@@ -1,0 +1,25 @@
+# Credentials — never commit real keys
+credentials/twitch_keys.yaml
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Airflow runtime state
+airflow_home/airflow.db
+airflow_home/airflow.cfg
+airflow_home/webserver_config.py
+airflow_home/logs/
+airflow_home/*.pid
+airflow_home/*.out
+airflow_home/*.err
+
+# Misc
+*.docx
+.env
+.DS_Store

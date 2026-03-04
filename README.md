@@ -182,7 +182,7 @@ This will:
 - Download **OpenJDK 17** to `.jdk/` (required by PySpark, no sudo needed)
 - Create a Python **virtual environment** at `venv/`
 - Install all pinned dependencies from `requirements.txt`
-- Initialise the **Airflow database** (SQLite, SequentialExecutor)
+- Initialise the **Airflow database** (Postgres, LocalExecutor)
 - Create the **Airflow admin user** (`admin` / `admin`)
 - Create the **S3 bucket** `datalake` in LocalStack
 
@@ -391,9 +391,6 @@ All S3 keys follow a strict pattern enforced by `s3_key()` in `dags/lib/s3_utils
 
 ### Docker not found in WSL2
 Enable WSL2 integration in **Docker Desktop → Settings → Resources → WSL Integration**.
-
-### `LocalExecutor` error with SQLite
-SQLite only supports `SequentialExecutor`. The `.env` is already set correctly. If you want `LocalExecutor`, replace SQLite with PostgreSQL in `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN`.
 
 ### Spark fails — `JAVA_HOME is not set`
 Java is downloaded automatically by `setup.sh` to `.jdk/`. If running manually:

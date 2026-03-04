@@ -32,6 +32,18 @@ export JAVA_HOME="$PROJECT_DIR/.jdk"
 export PYTHONPATH="$PROJECT_DIR:${PYTHONPATH:-}"
 source "$VENV_DIR/bin/activate"
 
+# ── 0. Ensure Java JDK is available (required by PySpark) ────────────────────
+if [ ! -x "$JAVA_HOME/bin/java" ]; then
+    echo "[INFO] Java not found at $JAVA_HOME — installing OpenJDK 17..."
+    mkdir -p "$JAVA_HOME"
+    JDK_URL="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz"
+    curl -fsSL "$JDK_URL" | tar xz --strip-components=1 -C "$JAVA_HOME"
+    echo "[OK] Java installed: $("$JAVA_HOME/bin/java" -version 2>&1 | head -1)"
+else
+    echo "[OK] Java found: $("$JAVA_HOME/bin/java" -version 2>&1 | head -1)"
+fi
+export PATH="$JAVA_HOME/bin:$PATH"
+
 # ── 1. Start Docker infra ─────────────────────────────────────────────────────
 if [ "$NO_DOCKER" = false ]; then
     echo "[INFO] Starting Docker infrastructure..."

@@ -34,7 +34,6 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
-
 from dags.lib.s3_utils import download_parquet, get_bucket, list_keys, s3_key, upload_parquet
 
 load_dotenv()
@@ -110,7 +109,13 @@ def combine_correlation(**kwargs) -> dict:
     yahoo_key = s3_key("formatted", "yahoo", "GamingStocks", date_str, "data.snappy.parquet")
 
     steam_df = download_parquet(steam_key)
-    yahoo_df = download_parquet(yahoo_key)
+    try:
+        yahoo_df = download_parquet(yahoo_key)
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"Yahoo formatted parquet not found: s3://{get_bucket()}/{yahoo_key}. "
+            "Check extract_yahoo + format_yahoo tasks."
+        ) from exc
 
     # Twitch data is optional (requires credentials) — degrade gracefully
     try:
@@ -201,12 +206,28 @@ def combine_correlation(**kwargs) -> dict:
         StructField("log_viewers",        DoubleType(),  True),
     ])
 
+    YAHOO_SCHEMA = StructType([
+        StructField("ticker", StringType(), True),
+        StructField("date", StringType(), True),
+        StructField("open", DoubleType(), True),
+        StructField("high", DoubleType(), True),
+        StructField("low", DoubleType(), True),
+        StructField("close", DoubleType(), True),
+        StructField("volume", LongType(), True),
+        StructField("daily_change_pct", DoubleType(), True),
+        StructField("daily_range", DoubleType(), True),
+        StructField("daily_range_pct", DoubleType(), True),
+    ])
+
     steam_sdf = spark.createDataFrame(steam_df)
     if twitch_df.empty:
         twitch_sdf = spark.createDataFrame([], schema=TWITCH_SCHEMA)
     else:
         twitch_sdf = spark.createDataFrame(twitch_df)
-    yahoo_sdf = spark.createDataFrame(yahoo_df)
+    if yahoo_df.empty:
+        yahoo_sdf = spark.createDataFrame([], schema=YAHOO_SCHEMA)
+    else :
+        yahoo_sdf = spark.createDataFrame(yahoo_df)
 
     steam_sdf.createOrReplaceTempView("steam")
     twitch_sdf.createOrReplaceTempView("twitch")

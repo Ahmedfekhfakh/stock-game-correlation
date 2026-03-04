@@ -27,7 +27,6 @@ GAMING_TICKERS = [
     "NTDOY",    # Nintendo
     "UBSFY",    # Ubisoft
     "RBLX",     # Roblox
-    "ATVI",     # Activision Blizzard (legacy, still traded)
 ]
 
 

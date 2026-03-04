@@ -8,6 +8,10 @@ Uploads: raw/yahoo/GamingStocks/YYYYMMDD/extract.json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+import subprocess
+import sys
+
+subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yfinance"])
 
 import yfinance as yf
 from dotenv import load_dotenv

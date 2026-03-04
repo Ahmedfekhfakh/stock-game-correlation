@@ -14,6 +14,7 @@ import yaml
 from dotenv import load_dotenv
 
 from dags.lib.s3_utils import s3_key, upload_json
+from airflow.hooks.base import BaseHook
 
 load_dotenv()
 
@@ -27,31 +28,46 @@ TWITCH_STREAMS_URL = "https://api.twitch.tv/helix/streams"
 def _load_credentials() -> tuple[str, str]:
     """
     Load Twitch credentials from (in priority order):
-    1. Environment variables TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET
-    2. credentials/twitch_keys.yaml
+    1) Airflow Connection: twitch_default (login=client_id, password=client_secret)
+    2) Environment variables TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET
+    3) credentials/twitch_keys.yaml
     """
-    client_id = os.getenv("TWITCH_CLIENT_ID", "")
-    client_secret = os.getenv("TWITCH_CLIENT_SECRET", "")
+    # 1) Airflow Connection
+    try:
+        conn = BaseHook.get_connection("twitch_default")
+        client_id = (conn.login or "").strip()
+        client_secret = (conn.password or "").strip()
+        if client_id and client_secret:
+            logger.info("Loaded Twitch credentials from Airflow connection: twitch_default")
+            return client_id, client_secret
+        logger.warning("Airflow connection twitch_default found but missing login/password")
+    except Exception as exc:
+        logger.info("Airflow connection twitch_default not available: %s", exc)
 
+    # 2) Environment variables
+    client_id = (os.getenv("TWITCH_CLIENT_ID", "") or "").strip()
+    client_secret = (os.getenv("TWITCH_CLIENT_SECRET", "") or "").strip()
     if client_id and client_secret:
         logger.info("Loaded Twitch credentials from environment")
         return client_id, client_secret
 
-    # Try YAML file
+    # 3) YAML file
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     yaml_path = os.path.join(project_root, "credentials", "twitch_keys.yaml")
 
     if os.path.exists(yaml_path):
         with open(yaml_path) as fh:
-            creds = yaml.safe_load(fh)
-        client_id = creds.get("client_id", "")
-        client_secret = creds.get("client_secret", "")
-        logger.info("Loaded Twitch credentials from %s", yaml_path)
-        return client_id, client_secret
+            creds = yaml.safe_load(fh) or {}
+        client_id = (creds.get("client_id", "") or "").strip()
+        client_secret = (creds.get("client_secret", "") or "").strip()
+        if client_id and client_secret:
+            logger.info("Loaded Twitch credentials from %s", yaml_path)
+            return client_id, client_secret
 
     raise FileNotFoundError(
         "Twitch credentials not found. "
-        "Set TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET env vars, "
+        "Create Airflow connection 'twitch_default' (login=client_id, password=client_secret), "
+        "or set TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET, "
         "or copy credentials/twitch_keys.yaml.example → credentials/twitch_keys.yaml"
     )
 

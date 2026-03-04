@@ -49,6 +49,7 @@ else
     echo "[OK] Java already present at $JDK_DIR"
 fi
 export JAVA_HOME="$JDK_DIR"
+export PATH="$JAVA_HOME/bin:${PATH}"
 
 # ── 4. Upgrade pip + install requirements ────────────────────────────────────
 echo "[INFO] Installing Python requirements (this may take a few minutes)..."
@@ -62,15 +63,16 @@ export AIRFLOW__CORE__LOAD_EXAMPLES=False
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="sqlite:///$AIRFLOW_HOME/airflow.db"
 export AIRFLOW__CORE__EXECUTOR=SequentialExecutor
 export AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY:-supersecretkey}"
+export PYTHONPATH="$AIRFLOW_HOME/dags:${PYTHONPATH:-}"
 
-mkdir -p "$AIRFLOW_HOME/dags"
+mkdir -p "$AIRFLOW_HOME/dags" "$AIRFLOW_HOME/logs"
+touch "$PROJECT_DIR/dags/lib/__init__.py"
 
 # Symlink project dags into airflow dags folder
-if [ ! -L "$AIRFLOW_HOME/dags/gaming_finance_dag.py" ]; then
-    ln -sf "$PROJECT_DIR/dags/gaming_finance_dag.py" "$AIRFLOW_HOME/dags/gaming_finance_dag.py"
-    ln -sf "$PROJECT_DIR/dags/realtime_stock_dag.py" "$AIRFLOW_HOME/dags/realtime_stock_dag.py"
-    echo "[OK] DAG symlinks created"
-fi
+ln -sf "$PROJECT_DIR/dags/gaming_finance_dag.py" "$AIRFLOW_HOME/dags/gaming_finance_dag.py"
+ln -sf "$PROJECT_DIR/dags/realtime_stock_dag.py" "$AIRFLOW_HOME/dags/realtime_stock_dag.py"
+ln -snf "$PROJECT_DIR/dags/lib" "$AIRFLOW_HOME/dags/lib"
+echo "[OK] DAG symlinks ensured"
 
 echo "[INFO] Initialising Airflow DB..."
 airflow db migrate

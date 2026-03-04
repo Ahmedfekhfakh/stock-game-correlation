@@ -73,35 +73,35 @@ and indexing results to Elasticsearch for Kibana dashboards.
 
     # ── Helper: lazy-import task functions ─────────────────────────────────────
     def _run_extract_steamspy(**kwargs):
-        from dags.lib.extract_steamspy import extract_steamspy
+        from lib.extract_steamspy import extract_steamspy
         return extract_steamspy(**kwargs)
 
     def _run_extract_twitch(**kwargs):
-        from dags.lib.extract_twitch import extract_twitch
+        from lib.extract_twitch import extract_twitch
         return extract_twitch(**kwargs)
 
     def _run_extract_yahoo(**kwargs):
-        from dags.lib.extract_yahoo import extract_yahoo
+        from lib.extract_yahoo import extract_yahoo
         return extract_yahoo(**kwargs)
 
     def _run_format_steamspy(**kwargs):
-        from dags.lib.format_steamspy import format_steamspy
+        from lib.format_steamspy import format_steamspy
         return format_steamspy(**kwargs)
 
     def _run_format_twitch(**kwargs):
-        from dags.lib.format_twitch import format_twitch
+        from lib.format_twitch import format_twitch
         return format_twitch(**kwargs)
 
     def _run_format_yahoo(**kwargs):
-        from dags.lib.format_yahoo import format_yahoo
+        from lib.format_yahoo import format_yahoo
         return format_yahoo(**kwargs)
 
     def _run_combine(**kwargs):
-        from dags.lib.combine_correlation import combine_correlation
+        from lib.combine_correlation import combine_correlation
         return combine_correlation(**kwargs)
 
     def _run_index(**kwargs):
-        from dags.lib.index_to_elastic import index_to_elastic
+        from lib.index_to_elastic import index_to_elastic
         return index_to_elastic(**kwargs)
 
     # ── Start sentinel ─────────────────────────────────────────────────────────

@@ -65,7 +65,7 @@ PUBLISHER_TICKER_MAP = {
 }
 
 # Default tickers to always include regardless of SteamSpy results
-DEFAULT_TICKERS = ["EA", "MSFT", "TTWO", "UBSFY", "SONY", "NTDOY", "ATVI", "RBLX"]
+DEFAULT_TICKERS = ["EA", "MSFT", "TTWO", "UBSFY", "SONY", "NTDOY", "RBLX"]
 
 
 def _lookup_ticker(publisher: str, developer: str) -> str | None:

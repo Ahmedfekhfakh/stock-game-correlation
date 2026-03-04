@@ -168,7 +168,7 @@ def extract_twitch(**kwargs) -> dict:
                 "date": date_str,
             }
         )
-
+    logger.info("data enriched successfully", enriched)
     payload = {
         "source": "twitch",
         "date": date_str,

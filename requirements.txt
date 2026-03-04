@@ -10,7 +10,7 @@ elasticsearch==8.12.0
 elastic-transport==8.13.1
 
 # ─── Data / Finance ──────────────────────────────────────────────────────────
-yfinance==0.2.37
+yfinance>=1.0.0
 pandas==2.1.4
 numpy==1.26.4
 scikit-learn==1.4.0

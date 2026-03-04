@@ -23,11 +23,13 @@ fi
 
 export AIRFLOW_HOME="$AIRFLOW_HOME"
 export AIRFLOW__CORE__LOAD_EXAMPLES=False
-export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="sqlite:///$AIRFLOW_HOME/airflow.db"
-export AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow@localhost:5432/airflow"
+export AIRFLOW__CORE__EXECUTOR=LocalExecutor
 export AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY:-supersecretkey}"
 
+
 export JAVA_HOME="$PROJECT_DIR/.jdk"
+export PYTHONPATH="$PROJECT_DIR:${PYTHONPATH:-}"
 source "$VENV_DIR/bin/activate"
 
 # ── 1. Start Docker infra ─────────────────────────────────────────────────────
@@ -56,9 +58,31 @@ if [ "$NO_DOCKER" = false ]; then
         sleep 5
     done
 
+    for i in $(seq 1 30); do
+        if docker exec airflow-postgres pg_isready -U airflow >/dev/null 2>&1; then
+            echo "[OK] PostgreSQL ready"
+            break
+        fi
+        echo "  PostgreSQL: attempt $i/30..."
+        sleep 5
+    done
+
     # Ensure bucket exists
     awslocal s3 mb "s3://${S3_BUCKET:-datalake}" 2>/dev/null || true
-fi
+    fi
+
+# ── 1b. Initialize Airflow DB ─────────────────────────────────────────────────
+echo "[INFO] Initializing Airflow database..."
+airflow db migrate
+
+# Create admin user (idempotent — ignores if already exists)
+airflow users create \
+    --username admin \
+    --password admin \
+    --firstname Admin \
+    --lastname User \
+    --role Admin \
+    --email admin@example.com 2>/dev/null || true
 
 # ── 2. Start Airflow webserver + scheduler (background) ───────────────────────
 echo "[INFO] Starting Airflow webserver..."

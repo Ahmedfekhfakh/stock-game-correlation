@@ -12,7 +12,12 @@ from datetime import datetime, timedelta, timezone
 import yfinance as yf
 from dotenv import load_dotenv
 
-from dags.lib.s3_utils import s3_key, upload_json
+from dags.lib.s3_utils import s3_key, upload_json, download_json
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
 
 load_dotenv()
 
@@ -27,7 +32,6 @@ GAMING_TICKERS = [
     "NTDOY",    # Nintendo
     "UBSFY",    # Ubisoft
     "RBLX",     # Roblox
-    "ATVI",     # Activision Blizzard (legacy, still traded)
 ]
 
 
@@ -69,7 +73,8 @@ def extract_yahoo(**kwargs) -> dict:
                 interval="1d",
                 auto_adjust=True,
             )
-
+            logger.info("Ticker %s → shape=%s", ticker_symbol, hist.shape)
+            logger.info("Ticker %s → head:\n%s", ticker_symbol, hist.head())
             if hist.empty:
                 logger.warning("No data for ticker %s", ticker_symbol)
                 failed_tickers.append(ticker_symbol)

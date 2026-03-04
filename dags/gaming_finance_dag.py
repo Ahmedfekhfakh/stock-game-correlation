@@ -21,7 +21,8 @@ from airflow.operators.empty import EmptyOperator
 from dotenv import load_dotenv
 
 # Ensure project root is on PYTHONPATH so dags.lib imports work
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Use realpath to resolve symlinks (airflow_home/dags/ → dags/)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 

@@ -2,7 +2,7 @@
 
 A full Big Data pipeline correlating **Steam** game popularity and **Twitch** viewership with **gaming-sector stock prices** (Yahoo Finance).
 
-**Stack:** Apache Airflow · Apache Spark (PySpark) · Elasticsearch 8.12 · Kibana 8.12 · LocalStack S3 · Docker
+**Stack:** Apache Airflow · Apache Spark (PySpark) · Elasticsearch 8.12 · Kibana 8.12 · LocalStack S3 · Postgres · Docker
 
 ---
 
@@ -80,7 +80,7 @@ Orchestration: Apache Airflow 2.9 (daily + 5-min DAGs)
 
 ```
 Projet_Data_Lake/
-├── docker-compose.yml              # LocalStack S3 + Elasticsearch 8.12 + Kibana 8.12
+├── docker-compose.yml              # LocalStack S3 + Elasticsearch 8.12 + Kibana 8.12 + Postgres
 ├── .env                            # Runtime environment variables (gitignored)
 ├── .env.example                    # Committed template — copy to .env and fill in
 ├── .gitignore
@@ -161,7 +161,7 @@ cp credentials/twitch_keys.yaml.example credentials/twitch_keys.yaml
 docker compose up -d
 ```
 
-Wait until all three containers are healthy:
+Wait until all four containers are healthy:
 
 ```bash
 docker ps --format "table {{.Names}}\t{{.Status}}"
@@ -169,6 +169,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 #   elasticsearch   Up X minutes (healthy)
 #   kibana          Up X minutes (healthy)
 #   localstack      Up X minutes (healthy)
+#   postgres      Up X minutes (healthy)
 ```
 
 ### 5. Run the one-shot setup script

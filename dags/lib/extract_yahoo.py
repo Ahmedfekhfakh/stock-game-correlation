@@ -36,6 +36,16 @@ GAMING_TICKERS = [
     "NTDOY",    # Nintendo
     "UBSFY",    # Ubisoft
     "RBLX",     # Roblox
+    "OTGLY",    # CD Projekt (Cyberpunk / Witcher)
+    "9697.T",   # Capcom (Monster Hunter / Resident Evil)
+    "9684.T",   # Square Enix (Final Fantasy)
+    "7832.T",   # Bandai Namco (Elden Ring / Tekken)
+    "NTES",     # NetEase (Chinese gaming giant)
+    "TCEHY",    # Tencent (League of Legends / Valorant)
+    "SE",       # Sea Limited (Garena / Free Fire)
+    "U",        # Unity Technologies (game engine)
+    "CRSR",     # Corsair Gaming (peripherals + streaming)
+    "DKNG",     # DraftKings (gaming-adjacent / esports betting)
 ]
 
 

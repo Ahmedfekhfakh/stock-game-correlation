@@ -12,7 +12,7 @@ echo "============================================================"
 # ── 1. Build the Airflow image ────────────────────────────────────────────────
 echo ""
 echo "[1/3] Building Docker images..."
-docker-compose -f "$PROJECT_DIR/docker-compose.yml" build
+docker-compose -f "$PROJECT_DIR/docker-compose.yml" build --no-cache
 
 # ── 2. Start all services ────────────────────────────────────────────────────
 echo ""

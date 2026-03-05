@@ -23,3 +23,7 @@ airflow_home/*.err
 *.docx
 .env
 .DS_Store
+.jdk/
+.idea/
+.vscode/
+

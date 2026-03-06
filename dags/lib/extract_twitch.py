@@ -1,7 +1,7 @@
 """
 extract_twitch.py — Extract top games & viewer counts from Twitch Helix API
 
-OAuth2 Client Credentials flow → top 100 games (2 pages of 50) →
+OAuth2 Client Credentials flow → top 300 games (6 pages of 50) →
 per-game top stream viewers → upload raw/twitch/TopGames/YYYYMMDD/extract.json
 """
 
@@ -11,9 +11,12 @@ from datetime import datetime, timezone
 
 import requests
 import yaml
+from dotenv import load_dotenv
+
+from dags.lib.s3_utils import s3_key, upload_json
 from airflow.hooks.base import BaseHook
 
-from lib.s3_utils import s3_key, upload_json
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -80,17 +83,16 @@ def _get_access_token(client_id: str, client_secret: str) -> str:
         },
         timeout=15,
     )
-    if response.status_code >= 400:
-        raise RuntimeError(f"Twitch token error {response.status_code}: {response.text}")
+    response.raise_for_status()
     token = response.json()["access_token"]
     logger.info("Twitch OAuth2 token obtained")
     return token
 
 
-def _fetch_top_games(client_id: str, token: str, pages: int = 2) -> list[dict]:
+def _fetch_top_games(client_id: str, token: str, pages: int = 6) -> list[dict]:
     """Fetch top games (50 per page × pages)."""
     headers = {"Client-ID": client_id, "Authorization": f"Bearer {token}"}
-    games: list[dict] = []
+    games = []
     cursor = None
 
     for page in range(pages):
@@ -99,8 +101,7 @@ def _fetch_top_games(client_id: str, token: str, pages: int = 2) -> list[dict]:
             params["after"] = cursor
 
         resp = requests.get(TWITCH_TOP_GAMES_URL, headers=headers, params=params, timeout=15)
-        if resp.status_code >= 400:
-            raise RuntimeError(f"Twitch top-games error {resp.status_code}: {resp.text}")
+        resp.raise_for_status()
         body = resp.json()
 
         page_games = body.get("data", [])
@@ -125,7 +126,7 @@ def _fetch_top_viewers_for_game(game_id: str, client_id: str, token: str) -> int
         resp.raise_for_status()
         streams = resp.json().get("data", [])
         if streams:
-            return int(streams[0].get("viewer_count", 0) or 0)
+            return streams[0].get("viewer_count", 0)
     except requests.RequestException as exc:
         logger.warning("Failed to fetch streams for game_id=%s: %s", game_id, exc)
 
@@ -139,32 +140,34 @@ def extract_twitch(**kwargs) -> dict:
     Returns:
         dict with 'date', 'count', 's3_key' metadata
     """
-    execution_date = kwargs.get("execution_date") or kwargs.get("logical_date") or datetime.now(timezone.utc)
-    date_str = execution_date.strftime("%Y%m%d") if hasattr(execution_date, "strftime") else datetime.now(timezone.utc).strftime("%Y%m%d")
+    execution_date = kwargs.get("execution_date") or kwargs.get(
+        "logical_date", datetime.now(timezone.utc)
+    )
+    if hasattr(execution_date, "strftime"):
+        date_str = execution_date.strftime("%Y%m%d")
+    else:
+        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     logger.info("Extracting Twitch top games for date %s", date_str)
 
     client_id, client_secret = _load_credentials()
     token = _get_access_token(client_id, client_secret)
 
-    games = _fetch_top_games(client_id, token, pages=2)
+    games = _fetch_top_games(client_id, token, pages=6)
 
+    # Enrich each game with viewer count from top stream
     enriched = []
-    extracted_at = datetime.now(timezone.utc).isoformat()
-
     for rank, game in enumerate(games, start=1):
-        game_id = game.get("id")
-        if not game_id:
-            continue
+        game_id = game["id"]
         viewers = _fetch_top_viewers_for_game(game_id, client_id, token)
         enriched.append(
             {
                 "rank": rank,
                 "game_id": game_id,
-                "game_name": game.get("name", ""),
+                "game_name": game["name"],
                 "box_art_url": game.get("box_art_url", ""),
                 "top_stream_viewers": viewers,
-                "extracted_at": extracted_at,
+                "extracted_at": datetime.now(timezone.utc).isoformat(),
                 "date": date_str,
             }
         )

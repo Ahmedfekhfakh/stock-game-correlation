@@ -20,23 +20,50 @@ logger = logging.getLogger(__name__)
 
 # Gaming-sector tickers to track
 GAMING_TICKERS = [
+    # Major publishers / platforms
     "EA",       # Electronic Arts
     "TTWO",     # Take-Two Interactive
+    "RBLX",     # Roblox
     "MSFT",     # Microsoft (Xbox + Activision)
     "SONY",     # Sony (PlayStation)
     "NTDOY",    # Nintendo
     "UBSFY",    # Ubisoft
-    "RBLX",     # Roblox
-    "OTGLY",    # CD Projekt (Cyberpunk / Witcher)
-    "9697.T",   # Capcom (Monster Hunter / Resident Evil)
-    "9684.T",   # Square Enix (Final Fantasy)
-    "7832.T",   # Bandai Namco (Elden Ring / Tekken)
-    "NTES",     # NetEase (Chinese gaming giant)
-    "TCEHY",    # Tencent (League of Legends / Valorant)
-    "SE",       # Sea Limited (Garena / Free Fire)
-    "U",        # Unity Technologies (game engine)
-    "CRSR",     # Corsair Gaming (peripherals + streaming)
-    "DKNG",     # DraftKings (gaming-adjacent / esports betting)
+
+    # Major Asian gaming companies
+    "TCEHY",    # Tencent
+    "NTES",     # NetEase
+    "SE",       # Sea Limited (Garena)
+
+    # Game studios
+    "OTGLY",    # CD Projekt
+    "NCBDY",    # Nexon ADR
+    "THQQF",    # Embracer / THQ Nordic
+    "SQNXF",    # Square Enix OTC
+    "CCOEY",    # Capcom ADR
+    "KNMRY",    # Konami ADR
+    "SGAMY",    # Sega Sammy ADR
+
+    # Japanese listings
+    "9697.T",   # Capcom
+    "9684.T",   # Square Enix
+    "7832.T",   # Bandai Namco
+
+    # Gaming ecosystem / tools
+    "U",        # Unity Technologies
+    "CRSR",     # Corsair Gaming
+
+    # Hardware exposure
+    "NVDA",     # Nvidia
+    "AMD",      # AMD
+
+    # Gaming-adjacent
+    "DKNG",     # DraftKings
+
+    # Historical
+    "ATVI",     # Activision Blizzard (historical if needed)
+
+    # Other
+    "NETE"      # NetEase (alt ticker sometimes used)
 ]
 
 
@@ -57,7 +84,7 @@ def extract_yahoo(**kwargs) -> dict:
         end_date = datetime.now(timezone.utc)
         date_str = end_date.strftime("%Y%m%d")
 
-    start_date = end_date - timedelta(days=30)
+    start_date = end_date - timedelta(days=365)
 
     logger.info(
         "Extracting Yahoo Finance data for %d tickers (%s → %s)",

@@ -35,23 +35,50 @@ logger = logging.getLogger(__name__)
 LIVE_INDEX = "game-stock-live"
 
 GAMING_TICKERS = [
-    "EA",
-    "TTWO",
-    "MSFT",
-    "SONY",
-    "NTDOY",
-    "UBSFY",
-    "RBLX",
-    "OTGLY",     # CD Projekt
-    "9697.T",    # Capcom
-    "9684.T",    # Square Enix
-    "7832.T",    # Bandai Namco
-    "NTES",      # NetEase
-    "TCEHY",     # Tencent
-    "SE",        # Sea Limited
-    "U",         # Unity Technologies
-    "CRSR",      # Corsair Gaming
-    "DKNG",      # DraftKings
+    # Major publishers / platforms
+    "EA",       # Electronic Arts
+    "TTWO",     # Take-Two Interactive
+    "RBLX",     # Roblox
+    "MSFT",     # Microsoft (Xbox + Activision)
+    "SONY",     # Sony (PlayStation)
+    "NTDOY",    # Nintendo
+    "UBSFY",    # Ubisoft
+
+    # Major Asian gaming companies
+    "TCEHY",    # Tencent
+    "NTES",     # NetEase
+    "SE",       # Sea Limited (Garena)
+
+    # Game studios
+    "OTGLY",    # CD Projekt
+    "NCBDY",    # Nexon ADR
+    "THQQF",    # Embracer / THQ Nordic
+    "SQNXF",    # Square Enix OTC
+    "CCOEY",    # Capcom ADR
+    "KNMRY",    # Konami ADR
+    "SGAMY",    # Sega Sammy ADR
+
+    # Japanese listings
+    "9697.T",   # Capcom
+    "9684.T",   # Square Enix
+    "7832.T",   # Bandai Namco
+
+    # Gaming ecosystem / tools
+    "U",        # Unity Technologies
+    "CRSR",     # Corsair Gaming
+
+    # Hardware exposure
+    "NVDA",     # Nvidia
+    "AMD",      # AMD
+
+    # Gaming-adjacent
+    "DKNG",     # DraftKings
+
+    # Historical
+    "ATVI",     # Activision Blizzard (historical if needed)
+
+    # Other
+    "NETE"      # NetEase (alt ticker sometimes used)
 ]
 
 LIVE_INDEX_MAPPING = {

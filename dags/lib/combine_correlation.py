@@ -172,16 +172,32 @@ def combine_correlation(**kwargs) -> dict:
     for _, steam_row in steam_df.iterrows():
         ticker = steam_row["ticker"]
         ticker_dates = yahoo_dates[yahoo_dates["ticker"] == ticker]["date"].tolist()
-        base_score = float(steam_row.get("rank_score", 50))
+
+        base_score = steam_row.get("rank_score", 50)
+
+        # Treat 0 or NaN as NULL
+        if base_score == 0 or pd.isna(base_score):
+            base_score = None
+        else:
+            base_score = float(base_score)
+
         for d in ticker_dates:
             row = steam_row.to_dict()
             row["date"] = d
-            # Noisy rank score: ±5% natural daily variation
-            noise = float(rng.normal(0, base_score * 0.05))
-            row["rank_score"] = max(1.0, round(base_score + noise, 2))
-            row["popularity_score"] = max(0.0, round(
-                row["rank_score"] * 0.6 + float(row.get("twitch_rank_score", 0)) * 0.4, 4
-            ))
+
+            if base_score is None:
+                row["rank_score"] = None
+                row["popularity_score"] = None
+            else:
+                # Only add noise if base_score exists
+                noise = float(rng.normal(0, base_score * 0.05))
+                rank_score = max(1.0, round(base_score + noise, 2))
+
+                row["rank_score"] = rank_score
+                row["popularity_score"] = max(
+                    0.0,
+                    round(rank_score * 0.6 + float(row.get("twitch_rank_score", 0)) * 0.4, 4)
+                )
             steam_expanded_rows.append(row)
     if steam_expanded_rows:
         steam_df = pd.DataFrame(steam_expanded_rows)
@@ -274,7 +290,7 @@ def combine_correlation(**kwargs) -> dict:
     if "popularity_score" not in joined_sdf.columns:
         joined_sdf = joined_sdf.withColumn(
             "popularity_score",
-            F.round(F.col("steam_rank_score") * 0.6 + F.col("twitch_rank_score") * 0.4, 4),
+            F.round(F.col("steam_rank_score") * 0.5 + F.col("twitch_rank_score") * 0.5, 4),
         )
 
     # ── 7-day rolling Pearson correlation (Spark Window) ─────────────────────

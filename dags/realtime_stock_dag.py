@@ -35,14 +35,22 @@ logger = logging.getLogger(__name__)
 LIVE_INDEX = "game-stock-live"
 
 GAMING_TICKERS = [
-    "EA",
-    "TTWO",
-    "MSFT",
-    "SONY",
-    "NTDOY",
-    "UBSFY",
-    "RBLX",
-    "ATVI",
+    # Publishers / platforms
+    "EA", "TTWO", "RBLX", "MSFT", "SONY", "NTDOY", "UBSFY",
+    "ATVI",  # (historical; if your data still contains it)
+    "U",     # Unity
+    "SE",    # Sea (Garena)
+    "TCEHY", # Tencent (proxy exposure to Riot/Epic)
+    "NETE",  # NetEase
+    "NCBDY", # Nexon ADR
+    "OTGLY", # CD Projekt ADR
+    "THQQF", # Embracer/THQ Nordic OTC
+    "CCOEY", # Capcom ADR
+    "KNMRY", # Konami ADR
+    "SGAMY", # Sega Sammy ADR
+    "SQNXF", # Square Enix OTC
+    # Hardware exposure (optional)
+    "NVDA", "AMD",
 ]
 
 LIVE_INDEX_MAPPING = {

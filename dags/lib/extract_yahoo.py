@@ -29,13 +29,22 @@ logger = logging.getLogger(__name__)
 
 # Gaming-sector tickers to track
 GAMING_TICKERS = [
-    "EA",       # Electronic Arts
-    "TTWO",     # Take-Two Interactive
-    "MSFT",     # Microsoft (Xbox + Activision)
-    "SONY",     # Sony (PlayStation)
-    "NTDOY",    # Nintendo
-    "UBSFY",    # Ubisoft
-    "RBLX",     # Roblox
+    # Publishers / platforms
+    "EA", "TTWO", "RBLX", "MSFT", "SONY", "NTDOY", "UBSFY",
+    "ATVI",  # (historical; if your data still contains it)
+    "U",     # Unity
+    "SE",    # Sea (Garena)
+    "TCEHY", # Tencent (proxy exposure to Riot/Epic)
+    "NETE",  # NetEase
+    "NCBDY", # Nexon ADR
+    "OTGLY", # CD Projekt ADR
+    "THQQF", # Embracer/THQ Nordic OTC
+    "CCOEY", # Capcom ADR
+    "KNMRY", # Konami ADR
+    "SGAMY", # Sega Sammy ADR
+    "SQNXF", # Square Enix OTC
+    # Hardware exposure (optional)
+    "NVDA", "AMD",
 ]
 
 
@@ -56,7 +65,7 @@ def extract_yahoo(**kwargs) -> dict:
         end_date = datetime.now(timezone.utc)
         date_str = end_date.strftime("%Y%m%d")
 
-    start_date = end_date - timedelta(days=30)
+    start_date = end_date - timedelta(days=365)
 
     logger.info(
         "Extracting Yahoo Finance data for %d tickers (%s → %s)",

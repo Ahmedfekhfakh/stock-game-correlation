@@ -65,7 +65,24 @@ PUBLISHER_TICKER_MAP = {
 }
 
 # Default tickers to always include regardless of SteamSpy results
-DEFAULT_TICKERS = ["EA", "MSFT", "TTWO", "UBSFY", "SONY", "NTDOY", "RBLX"]
+DEFAULT_TICKERS = [
+    # Publishers / platforms
+    "EA", "TTWO", "RBLX", "MSFT", "SONY", "NTDOY", "UBSFY",
+    "ATVI",  # (historical; if your data still contains it)
+    "U",     # Unity
+    "SE",    # Sea (Garena)
+    "TCEHY", # Tencent (proxy exposure to Riot/Epic)
+    "NETE",  # NetEase
+    "NCBDY", # Nexon ADR
+    "OTGLY", # CD Projekt ADR
+    "THQQF", # Embracer/THQ Nordic OTC
+    "CCOEY", # Capcom ADR
+    "KNMRY", # Konami ADR
+    "SGAMY", # Sega Sammy ADR
+    "SQNXF", # Square Enix OTC
+    # Hardware exposure (optional)
+    "NVDA", "AMD",
+]
 
 
 def _lookup_ticker(publisher: str, developer: str) -> str | None:

@@ -3,8 +3,10 @@ combine_correlation.py — Spark SQL JOIN + 7-day Pearson + XGBoost ML
 
 Pipeline:
   1. Load 3 formatted Parquets from S3 (Steam, Twitch, Yahoo)
-  2. Spark SQL JOIN: Steam INNER JOIN Yahoo (ticker+date) + LEFT JOIN Twitch (name+date)
-  3. Combined popularity score: Steam 60% + Twitch 40%
+  2. Spark SQL UNION ALL:
+     Path A — Steam INNER JOIN Yahoo (ticker+date) + LEFT JOIN Twitch (name)
+     Path B — Twitch-only games (not on Steam) INNER JOIN Yahoo (ticker+date)
+  3. Combined popularity score: Steam 60%+Twitch 40% | Twitch-only 100%
   4. 7-day rolling Pearson correlation (Window function)
   5. Signal labels: STRONG_POSITIVE … STRONG_NEGATIVE
   6. .toPandas() → XGBClassifier (150 est.) + 5-fold stratified CV
@@ -34,11 +36,56 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
+
 from dags.lib.s3_utils import download_parquet, get_bucket, list_keys, s3_key, upload_parquet
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# ── Twitch-only games → stock ticker mapping ─────────────────────────────
+# Games popular on Twitch that are NOT on Steam (free-to-play / console-only)
+TWITCH_TICKER_MAP = {
+    # Riot Games → Tencent (majority owner)
+    "league of legends":            "TCEHY",
+    "valorant":                     "TCEHY",
+    "teamfight tactics":            "TCEHY",
+    # Epic Games (Fortnite) → Tencent (40% stake)
+    "fortnite":                     "TCEHY",
+    # Activision Blizzard → Microsoft
+    "call of duty: warzone":        "MSFT",
+    "call of duty: modern warfare": "MSFT",
+    "call of duty: warzone 2.0":    "MSFT",
+    "overwatch 2":                  "MSFT",
+    "world of warcraft":            "MSFT",
+    "diablo iv":                    "MSFT",
+    "hearthstone":                  "MSFT",
+    # EA (mobile / console exclusives on Twitch)
+    "apex legends":                 "EA",
+    "fc 25":                        "EA",
+    "ea sports fc 25":              "EA",
+    "madden nfl 25":                "EA",
+    # Roblox
+    "roblox":                       "RBLX",
+    # Nintendo
+    "super smash bros. ultimate":   "NTDOY",
+    "pokemon":                      "NTDOY",
+    "the legend of zelda":          "NTDOY",
+    "splatoon 3":                   "NTDOY",
+    # Sony / PlayStation exclusives
+    "god of war ragnarök":          "SONY",
+    "gran turismo 7":               "SONY",
+    "marvel's spider-man 2":        "SONY",
+    # Sea Limited / Garena
+    "free fire":                    "SE",
+    # NetEase
+    "naraka: bladepoint":           "NTES",
+    "marvel rivals":                "NTES",
+    # Ubisoft
+    "rainbow six siege":            "UBSFY",
+    # Take-Two
+    "nba 2k25":                     "TTWO",
+}
 
 # Signal thresholds for Pearson r
 SIGNAL_THRESHOLDS = {
@@ -109,13 +156,7 @@ def combine_correlation(**kwargs) -> dict:
     yahoo_key = s3_key("formatted", "yahoo", "GamingStocks", date_str, "data.snappy.parquet")
 
     steam_df = download_parquet(steam_key)
-    try:
-        yahoo_df = download_parquet(yahoo_key)
-    except Exception as exc:
-        raise FileNotFoundError(
-            f"Yahoo formatted parquet not found: s3://{get_bucket()}/{yahoo_key}. "
-            "Check extract_yahoo + format_yahoo tasks."
-        ) from exc
+    yahoo_df = download_parquet(yahoo_key)
 
     # Twitch data is optional (requires credentials) — degrade gracefully
     try:
@@ -172,37 +213,63 @@ def combine_correlation(**kwargs) -> dict:
     for _, steam_row in steam_df.iterrows():
         ticker = steam_row["ticker"]
         ticker_dates = yahoo_dates[yahoo_dates["ticker"] == ticker]["date"].tolist()
-
-        base_score = steam_row.get("rank_score", 50)
-
-        # Treat 0 or NaN as NULL
-        if base_score == 0 or pd.isna(base_score):
-            base_score = None
-        else:
-            base_score = float(base_score)
-
+        base_score = float(steam_row.get("rank_score", 50))
         for d in ticker_dates:
             row = steam_row.to_dict()
             row["date"] = d
-
-            if base_score is None:
-                row["rank_score"] = None
-                row["popularity_score"] = None
-            else:
-                # Only add noise if base_score exists
-                noise = float(rng.normal(0, base_score * 0.05))
-                rank_score = max(1.0, round(base_score + noise, 2))
-
-                row["rank_score"] = rank_score
-                row["popularity_score"] = max(
-                    0.0,
-                    round(rank_score * 0.6 + float(row.get("twitch_rank_score", 0)) * 0.4, 4)
-                )
+            # Noisy rank score: ±5% natural daily variation
+            noise = float(rng.normal(0, base_score * 0.05))
+            row["rank_score"] = max(1.0, round(base_score + noise, 2))
+            row["popularity_score"] = max(0.0, round(
+                row["rank_score"] * 0.6 + float(row.get("twitch_rank_score", 0)) * 0.4, 4
+            ))
             steam_expanded_rows.append(row)
     if steam_expanded_rows:
         steam_df = pd.DataFrame(steam_expanded_rows)
         logger.info("Steam expanded to %d rows (30-day history per game)", len(steam_df))
     steam_df = _prep_df(steam_df)
+
+    # ── Expand Twitch-only games to 30-day history ────────────────────────────
+    # Same logic as Steam: replicate each Twitch game for every trading date
+    # of its mapped ticker, adding noise to viewer_rank_score.
+    steam_game_names = set(steam_df["name"].str.lower()) if "name" in steam_df.columns else set()
+    twitch_only_rows = []
+    for _, tw_row in twitch_df.iterrows():
+        game_name = str(tw_row.get("game_name", "")).strip()
+        if not game_name:
+            continue
+        # Skip games already covered by Steam
+        if game_name.lower() in steam_game_names:
+            continue
+        # Look up ticker from TWITCH_TICKER_MAP
+        ticker = TWITCH_TICKER_MAP.get(game_name.lower())
+        if not ticker:
+            continue
+        ticker_dates = yahoo_dates[yahoo_dates["ticker"] == ticker]["date"].tolist()
+        if not ticker_dates:
+            continue
+        base_viewers = int(tw_row.get("top_stream_viewers", 0))
+        base_rank_score = float(tw_row.get("viewer_rank_score", 50))
+        for d in ticker_dates:
+            noise = float(rng.normal(0, max(base_rank_score * 0.05, 1)))
+            row = {
+                "game_name": game_name,
+                "ticker": ticker,
+                "date": d,
+                "twitch_viewers": max(0, int(base_viewers + rng.normal(0, base_viewers * 0.08))),
+                "twitch_rank": int(tw_row.get("rank", 999)),
+                "twitch_rank_score": max(1.0, round(base_rank_score + noise, 2)),
+            }
+            twitch_only_rows.append(row)
+    if twitch_only_rows:
+        twitch_only_df = pd.DataFrame(twitch_only_rows)
+        logger.info("Twitch-only games expanded to %d rows", len(twitch_only_df))
+    else:
+        twitch_only_df = pd.DataFrame(
+            columns=["game_name", "ticker", "date", "twitch_viewers",
+                     "twitch_rank", "twitch_rank_score"]
+        )
+    twitch_only_df = _prep_df(twitch_only_df)
 
     # ── Spark Session + Views ─────────────────────────────────────────────────
     spark = _get_spark()
@@ -222,44 +289,31 @@ def combine_correlation(**kwargs) -> dict:
         StructField("log_viewers",        DoubleType(),  True),
     ])
 
-    YAHOO_SCHEMA = StructType([
-        StructField("ticker", StringType(), True),
-        StructField("date", StringType(), True),
-        StructField("open", DoubleType(), True),
-        StructField("high", DoubleType(), True),
-        StructField("low", DoubleType(), True),
-        StructField("close", DoubleType(), True),
-        StructField("volume", LongType(), True),
-        StructField("daily_change_pct", DoubleType(), True),
-        StructField("daily_range", DoubleType(), True),
-        StructField("daily_range_pct", DoubleType(), True),
-    ])
-
     steam_sdf = spark.createDataFrame(steam_df)
     if twitch_df.empty:
         twitch_sdf = spark.createDataFrame([], schema=TWITCH_SCHEMA)
     else:
         twitch_sdf = spark.createDataFrame(twitch_df)
-    if yahoo_df.empty:
-        yahoo_sdf = spark.createDataFrame([], schema=YAHOO_SCHEMA)
-    else :
-        yahoo_sdf = spark.createDataFrame(yahoo_df)
+    yahoo_sdf = spark.createDataFrame(yahoo_df)
+    twitch_only_sdf = spark.createDataFrame(twitch_only_df)
 
     steam_sdf.createOrReplaceTempView("steam")
     twitch_sdf.createOrReplaceTempView("twitch")
     yahoo_sdf.createOrReplaceTempView("yahoo")
+    twitch_only_sdf.createOrReplaceTempView("twitch_only")
 
     # ── Spark SQL JOIN ────────────────────────────────────────────────────────
-    # Steam has one snapshot per day; Yahoo has 30 days of history.
-    # We JOIN Steam to Yahoo on ticker only → each game expands to 30 stock dates.
-    # Twitch (same-day snapshot) is joined on name only.
-    # This gives a 30-day time-series per game/ticker for rolling correlation.
+    # Path A: Steam games → INNER JOIN Yahoo + LEFT JOIN Twitch (source='steam')
+    # Path B: Twitch-only games → INNER JOIN Yahoo (source='twitch')
+    # UNION ALL combines both paths for full coverage.
     joined_sdf = spark.sql(
         """
+        -- Path A: Games on Steam (may also be on Twitch)
         SELECT
             y.date                              AS date,
             s.name                              AS game_name,
             s.ticker                            AS ticker,
+            'steam'                             AS source,
             s.rank                              AS steam_rank,
             s.rank_score                        AS steam_rank_score,
             s.peak_ccu                          AS peak_ccu,
@@ -282,20 +336,51 @@ def combine_correlation(**kwargs) -> dict:
         LEFT JOIN twitch t
             ON LOWER(s.name) = LOWER(t.game_name)
         WHERE s.ticker != 'UNKNOWN'
+
+        UNION ALL
+
+        -- Path B: Twitch-only games (NOT on Steam)
+        SELECT
+            y.date                              AS date,
+            tw.game_name                        AS game_name,
+            tw.ticker                           AS ticker,
+            'twitch'                            AS source,
+            0                                   AS steam_rank,
+            0                                   AS steam_rank_score,
+            0                                   AS peak_ccu,
+            0                                   AS avg_playtime_2weeks,
+            0                                   AS review_ratio,
+            tw.twitch_viewers                   AS twitch_viewers,
+            tw.twitch_rank                      AS twitch_rank,
+            tw.twitch_rank_score                AS twitch_rank_score,
+            y.open                              AS stock_open,
+            y.close                             AS stock_close,
+            y.high                              AS stock_high,
+            y.low                               AS stock_low,
+            y.volume                            AS stock_volume,
+            y.daily_change_pct                  AS daily_change_pct,
+            y.daily_range_pct                   AS daily_range_pct
+        FROM twitch_only tw
+        INNER JOIN yahoo y
+            ON tw.ticker = y.ticker
+            AND tw.date  = y.date
         """
     )
 
-    # popularity_score is already computed in the expanded steam_df per date
-    # Ensure it's present; recompute as fallback if missing
-    if "popularity_score" not in joined_sdf.columns:
-        joined_sdf = joined_sdf.withColumn(
-            "popularity_score",
-            F.round(F.col("steam_rank_score") * 0.5 + F.col("twitch_rank_score") * 0.5, 4),
-        )
+    # popularity_score: source-based weighting
+    # Steam games: 60% steam + 40% twitch
+    # Twitch-only: 100% twitch_rank_score
+    joined_sdf = joined_sdf.withColumn(
+        "popularity_score",
+        F.when(F.col("source") == "twitch",
+               F.round(F.col("twitch_rank_score").cast("double"), 4))
+         .otherwise(
+               F.round(F.col("steam_rank_score") * 0.6 + F.col("twitch_rank_score") * 0.4, 4))
+    )
 
     # ── 7-day rolling Pearson correlation (Spark Window) ─────────────────────
     w7 = (
-        Window.partitionBy("ticker")
+        Window.partitionBy("game_name", "ticker")
         .orderBy(F.col("date").cast("long"))
         .rowsBetween(-6, 0)  # current row + 6 preceding = 7 rows
     )
@@ -332,6 +417,8 @@ def combine_correlation(**kwargs) -> dict:
         pdf["signal"] = pdf["corr_7d_popularity_price"].apply(_signal_label)
 
         # ── Feature matrix ────────────────────────────────────────────────────
+        # Encode source as binary: steam=0, twitch=1
+        pdf["source_is_twitch"] = (pdf["source"] == "twitch").astype(int)
         feature_cols = [
             "popularity_score",
             "steam_rank_score",
@@ -342,6 +429,7 @@ def combine_correlation(**kwargs) -> dict:
             "daily_change_pct",
             "daily_range_pct",
             "stock_volume",
+            "source_is_twitch",
         ]
 
         X = pdf[feature_cols].fillna(0).values

@@ -60,8 +60,8 @@ echo "[OK] Python requirements installed"
 # ── 4. Airflow initialisation ────────────────────────────────────────────────
 export AIRFLOW_HOME="$AIRFLOW_HOME"
 export AIRFLOW__CORE__LOAD_EXAMPLES=False
-export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="sqlite:///$AIRFLOW_HOME/airflow.db"
-export AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow@localhost:5432/airflow"
+export AIRFLOW__CORE__EXECUTOR=LocalExecutor
 export AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY:-supersecretkey}"
 export PYTHONPATH="$AIRFLOW_HOME/dags:${PYTHONPATH:-}"
 

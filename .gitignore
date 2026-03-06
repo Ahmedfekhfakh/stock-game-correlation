@@ -18,6 +18,8 @@ airflow_home/logs/
 airflow_home/*.pid
 airflow_home/*.out
 airflow_home/*.err
+airflow_home/dags/*.pyc
+airflow_home/dags/*.py
 
 # Misc
 *.docx

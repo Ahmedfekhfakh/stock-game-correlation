@@ -79,17 +79,17 @@ Orchestration: Apache Airflow 2.9 (daily + 5-min DAGs)
 ## Project Structure
 
 ```
-Projet_Data_Lake/
-├── docker-compose.yml              # LocalStack S3 + Elasticsearch 8.12 + Kibana 8.12 + Postgres
-├── .env                            # Runtime environment variables (gitignored)
-├── .env.example                    # Committed template — copy to .env and fill in
-├── .gitignore
+stock-game-correlation/
+├── docker-compose.yml              # All services: Postgres, LocalStack, ES, Kibana, Airflow
+├── Dockerfile                      # Airflow + PySpark + Java 17 image
 ├── requirements.txt                # Pinned Python dependencies
-├── setup.sh                        # One-shot bootstrap (venv + pip + Airflow + S3)
-├── run.sh                          # One-command: start infra + trigger pipeline
+├── run.sh                          # One-command: build + start + import Kibana
+├── export.ndjson                   # Kibana dashboard (Data Views + Dashboard)
+├── .dockerignore
+├── .gitignore
 │
 ├── credentials/
-│   └── twitch_keys.yaml.example   # Twitch credential template (copy → twitch_keys.yaml)
+│   └── twitch_keys.yaml            # Twitch OAuth2 credentials
 │
 ├── dags/
 │   ├── gaming_finance_dag.py       # Main daily DAG  (08:00 UTC)
@@ -97,17 +97,15 @@ Projet_Data_Lake/
 │   └── lib/
 │       ├── __init__.py
 │       ├── s3_utils.py             # boto3 S3 helpers + naming convention enforcer
-│       ├── extract_steamspy.py     # SteamSpy top-100 games (no API key needed)
+│       ├── extract_steamspy.py     # SteamSpy top-100 games (retry + fallback)
 │       ├── extract_twitch.py       # Twitch Helix OAuth2 — top games + viewer counts
-│       ├── extract_yahoo.py        # yfinance 30-day OHLCV for 8 gaming tickers
+│       ├── extract_yahoo.py        # yfinance 30-day OHLCV for 17 gaming tickers
 │       ├── format_steamspy.py      # Spark: UTC normalise, rank_score, review_ratio
 │       ├── format_twitch.py        # Spark: UTC normalise, viewer_rank_score
 │       ├── format_yahoo.py         # Spark: daily_change_pct, daily_range KPIs
-│       ├── combine_correlation.py  # Spark SQL JOIN + 7d Pearson + GradientBoosting
+│       ├── combine_correlation.py  # Spark SQL UNION ALL + 7d Pearson + XGBoost
 │       └── index_to_elastic.py     # ES bulk index with explicit mapping
-│
-└── tests/
-    └── test_extractors.py          # Standalone tests (no Airflow needed)
+
 ```
 
 ---
@@ -117,116 +115,58 @@ Projet_Data_Lake/
 | Tool | Minimum version | Notes |
 |---|---|---|
 | Docker Desktop | 4.x | WSL2 integration must be enabled |
-| Python | 3.10 | System Python is fine |
-| Java 17 | auto-downloaded by `setup.sh` | Required by PySpark |
 | curl | any | For health checks |
 
-> **No cloud account needed.** S3 is emulated locally by LocalStack.
+> **No cloud account needed.** S3 is emulated locally by LocalStack.  
+> **No Java/Python install needed.** Everything runs inside Docker.
 
 ---
 
-## Setup
+## Setup & Running
 
-### 1. Clone / enter the project directory
-
-```bash
-cd /home/<user>/Projet_Data_Lake
-```
-
-### 2. Configure environment variables
+### 1. Clone the project
 
 ```bash
-cp .env.example .env
-# Edit .env if needed (defaults work out-of-the-box for local dev)
+cd /mnt/f/Projets/stock-game-correlation
 ```
 
-### 3. Configure Twitch credentials
+### 2. Configure Twitch credentials (optional)
 
 Register a free app at [dev.twitch.tv/console](https://dev.twitch.tv/console):
 
-1. Click **Register Your Application**
-2. Name: `DataLakePipeline` · OAuth Redirect: `http://localhost` · Category: `Analytics Tool`
-3. Click **Create** → **Manage** → copy **Client ID**
-4. Click **New Secret** → copy **Client Secret**
-
 ```bash
 cp credentials/twitch_keys.yaml.example credentials/twitch_keys.yaml
-# Edit credentials/twitch_keys.yaml and fill in client_id + client_secret
-# Also update TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET in .env
+# Edit and fill in client_id + client_secret
 ```
 
-### 4. Start infrastructure
+> Twitch data is optional — the pipeline works without it.
 
-```bash
-docker compose up -d
-```
-
-Wait until all four containers are healthy:
-
-```bash
-docker ps --format "table {{.Names}}\t{{.Status}}"
-# Expected:
-#   elasticsearch   Up X minutes (healthy)
-#   kibana          Up X minutes (healthy)
-#   localstack      Up X minutes (healthy)
-#   postgres      Up X minutes (healthy)
-```
-
-### 5. Run the one-shot setup script
-
-```bash
-bash setup.sh
-```
-
-This will:
-- Download **OpenJDK 17** to `.jdk/` (required by PySpark, no sudo needed)
-- Create a Python **virtual environment** at `venv/`
-- Install all pinned dependencies from `requirements.txt`
-- Initialise the **Airflow database** (SQLite, SequentialExecutor)
-- Create the **Airflow admin user** (`admin` / `admin`)
-- Create the **S3 bucket** `datalake` in LocalStack
-
----
-
-## Running the Pipeline
-
-### Option A — One command
+### 3. Launch everything
 
 ```bash
 bash run.sh
 ```
 
-This starts the Airflow webserver + scheduler as daemons, then triggers the main DAG.
+This will:
+1. **Build** the Docker image (Airflow + PySpark + Java 17)
+2. **Start** all 8 containers (Postgres, pgAdmin, LocalStack, Elasticsearch, Kibana, Airflow init/webserver/scheduler)
+3. **Wait** for Airflow to be healthy
+4. **Import** Kibana dashboards from `export.ndjson`
 
-### Option B — Manual steps
+### 4. Access the services
 
-```bash
-source venv/bin/activate
-export JAVA_HOME=$PWD/.jdk
+| Service | URL | Credentials |
+|---|---|---|
+| Airflow UI | http://localhost:8080 | admin / admin |
+| Kibana Dashboard | http://localhost:5601/app/dashboards | — |
+| Elasticsearch | http://localhost:9200 | — |
+| LocalStack S3 | http://localhost:4566 | — |
+| pgAdmin | http://localhost:5050 | admin@admin.com / admin |
 
-# Start Airflow (run each in a separate terminal or as daemons)
-export AIRFLOW_HOME=$PWD/airflow_home
-export AIRFLOW__CORE__DAGS_FOLDER=$PWD/dags
-airflow webserver --port 8080 --daemon
-airflow scheduler --daemon
-
-# Trigger the pipeline
-airflow dags trigger gaming_finance_correlation
-
-# Unpause the live-price DAG
-airflow dags unpause realtime_stock_refresh
-```
-
-### Option C — Run without Airflow (direct Python)
-
-Useful for testing individual steps:
+### Stop everything
 
 ```bash
-source venv/bin/activate
-export JAVA_HOME=$PWD/.jdk
-export $(cat .env | xargs)
-
-python tests/test_extractors.py
+docker-compose down
 ```
 
 ---
@@ -298,27 +238,33 @@ Open [http://localhost:8080](http://localhost:8080) — login with `admin` / `ad
 
 ## Kibana Dashboards
 
-Open [http://localhost:5601](http://localhost:5601)
+The Kibana dashboard is defined in `export.ndjson` and imported automatically by `run.sh`.
 
-Two **Data Views** are pre-created:
+Open the dashboard: [http://localhost:5601/app/dashboards](http://localhost:5601/app/dashboards)
+
+Two **Data Views** are included:
 
 | Data View | Index | Time field |
 |---|---|---|
 | Game Stock Correlation | `game-stock-correlation` | `date` |
 | Game Stock Live | `game-stock-live` | `timestamp` |
 
-### Recommended Dashboard Panels
+### Updating the Kibana dashboard
 
-| # | Panel | Type | Fields |
-|---|---|---|---|
-| 1 | Stock price trend by ticker | Line chart | `date` × `daily_change_pct` split by `ticker` |
-| 2 | 7-day Pearson correlation | Bar chart | `ticker` × `corr_7d_popularity_price` |
-| 3 | Signal distribution | Pie chart | `signal` (5 categories) |
-| 4 | Top correlated games | Data table | `game_name`, `ticker`, `signal`, `corr_7d_popularity_price` |
-| 5 | Strong positive signals today | Metric | Count where `signal = STRONG_POSITIVE` |
-| 6 | Game popularity scores | Bar chart | `game_name` × `popularity_score` |
-| 7 | Live price stream | Line chart | `timestamp` × `current_price` (game-stock-live) |
-| 8 | Live change % gauges | Gauge | `change_pct` per `ticker` (game-stock-live) |
+> **No Docker rebuild needed!** Dashboard changes are independent from the code.
+
+**To modify the dashboard:**
+1. Edit it visually in Kibana at `http://localhost:5601/app/dashboards`
+2. Export: go to `Management → Saved Objects → Export` and download your objects
+3. Replace the `export.ndjson` file in the project
+
+**To re-import after editing `export.ndjson`:**
+```bash
+curl -X POST "http://localhost:5601/api/saved_objects/_import?overwrite=true" \
+  -H "kbn-xsrf: true" --form file=@export.ndjson
+```
+
+Or via the UI: `Management → Saved Objects → Import → select export.ndjson`
 
 ---
 
@@ -383,7 +329,16 @@ All S3 keys follow a strict pattern enforced by `s3_key()` in `dags/lib/s3_utils
 | `NTDOY` | Nintendo | Switch, Mario, Zelda |
 | `UBSFY` | Ubisoft | Assassin's Creed, Far Cry |
 | `RBLX` | Roblox | Roblox platform |
-| `ATVI` | Activision Blizzard | Legacy ticker (acquired by MSFT) |
+| `OTGLY` | CD Projekt | Cyberpunk 2077, Witcher |
+| `9697.T` | Capcom | Monster Hunter, Resident Evil |
+| `9684.T` | Square Enix | Final Fantasy |
+| `7832.T` | Bandai Namco | Elden Ring, Tekken |
+| `NTES` | NetEase | Chinese gaming giant |
+| `TCEHY` | Tencent | League of Legends, Valorant |
+| `SE` | Sea Limited | Garena, Free Fire |
+| `U` | Unity Technologies | Game engine |
+| `CRSR` | Corsair Gaming | Peripherals + streaming |
+| `DKNG` | DraftKings | Esports betting |
 
 ---
 
@@ -392,37 +347,32 @@ All S3 keys follow a strict pattern enforced by `s3_key()` in `dags/lib/s3_utils
 ### Docker not found in WSL2
 Enable WSL2 integration in **Docker Desktop → Settings → Resources → WSL Integration**.
 
-### `LocalExecutor` error with SQLite
-SQLite only supports `SequentialExecutor`. The `.env` is already set correctly. If you want `LocalExecutor`, replace SQLite with PostgreSQL in `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN`.
-
-### Spark fails — `JAVA_HOME is not set`
-Java is downloaded automatically by `setup.sh` to `.jdk/`. If running manually:
-```bash
-export JAVA_HOME=$PWD/.jdk
-```
-
-### Twitch returns 400 Bad Request
-- Make sure both `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in `.env` match `credentials/twitch_keys.yaml`
-- Regenerate the client secret at [dev.twitch.tv/console](https://dev.twitch.tv/console) if expired
-
 ### Elasticsearch `compatible-with=9` error
-Install the correct client version:
 ```bash
 pip install "elasticsearch==8.12.0" "elastic-transport==8.13.1"
 ```
 
-### `ATVI` ticker returns no data
-Activision Blizzard was acquired by Microsoft in 2023 — the ticker is delisted. This is expected; the pipeline handles it gracefully and skips it.
-
 ### S3 bucket missing after restart
-LocalStack data is persisted via Docker volume. If the volume was removed, recreate the bucket:
+LocalStack data is persisted via Docker volume. If the volume was removed:
 ```bash
-python3 -c "
-import boto3
-boto3.client('s3', endpoint_url='http://localhost:4566',
-    aws_access_key_id='test', aws_secret_access_key='test',
-    region_name='us-east-1').create_bucket(Bucket='datalake')
-"
+docker exec localstack awslocal s3 mb s3://datalake
+```
+
+### Kibana shows empty dashboard
+Make sure `export.ndjson` was imported:
+```bash
+curl -X POST "http://localhost:5601/api/saved_objects/_import?overwrite=true" \
+  -H "kbn-xsrf: true" --form file=@export.ndjson
+```
+
+### SteamSpy rate limit ("Too many connections")
+The pipeline has built-in retry logic (3 attempts with exponential backoff) and fallback data for 20+ games. It will never fail due to SteamSpy limits.
+
+### CRLF error in run.sh
+If you get `invalid option namepipefail`, convert line endings:
+```bash
+sed -i 's/\r$//' run.sh
+bash run.sh
 ```
 
 ---
@@ -554,6 +504,7 @@ W_POS     [  1     0      0      1     78 ]
 | Service | URL | Credentials |
 |---|---|---|
 | Airflow UI | http://localhost:8080 | admin / admin |
-| Kibana | http://localhost:5601 | — |
+| Kibana Dashboard | http://localhost:5601/app/dashboards | — |
 | Elasticsearch | http://localhost:9200 | — |
-| LocalStack | http://localhost:4566 | — |
+| LocalStack S3 | http://localhost:4566 | — |
+| pgAdmin | http://localhost:5050 | admin@admin.com / admin |

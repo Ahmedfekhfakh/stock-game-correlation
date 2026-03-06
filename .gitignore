@@ -14,8 +14,15 @@ build/
 .jdk/
 
 # Airflow runtime state
-airflow_home/
-
+airflow_home/airflow.db
+airflow_home/airflow.cfg
+airflow_home/webserver_config.py
+airflow_home/logs/
+airflow_home/*.pid
+airflow_home/*.out
+airflow_home/*.err
+airflow_home/dags/*.pyc
+airflow_home/dags/*.py
 
 # Misc
 *.docx

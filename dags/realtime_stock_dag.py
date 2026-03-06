@@ -42,7 +42,16 @@ GAMING_TICKERS = [
     "NTDOY",
     "UBSFY",
     "RBLX",
-    "ATVI",
+    "OTGLY",     # CD Projekt
+    "9697.T",    # Capcom
+    "9684.T",    # Square Enix
+    "7832.T",    # Bandai Namco
+    "NTES",      # NetEase
+    "TCEHY",     # Tencent
+    "SE",        # Sea Limited
+    "U",         # Unity Technologies
+    "CRSR",      # Corsair Gaming
+    "DKNG",      # DraftKings
 ]
 
 LIVE_INDEX_MAPPING = {

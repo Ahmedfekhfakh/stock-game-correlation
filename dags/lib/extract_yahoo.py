@@ -93,7 +93,7 @@ def extract_yahoo(**kwargs) -> dict:
         end_date = datetime.now(timezone.utc)
         date_str = end_date.strftime("%Y%m%d")
 
-    start_date = end_date - timedelta(days=30)
+    start_date = end_date - timedelta(days=365)
 
     logger.info(
         "Extracting Yahoo Finance data for %d tickers (%s → %s)",

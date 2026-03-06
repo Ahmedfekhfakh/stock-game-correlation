@@ -1,7 +1,7 @@
 """
 extract_twitch.py — Extract top games & viewer counts from Twitch Helix API
 
-OAuth2 Client Credentials flow → top 100 games (2 pages of 50) →
+OAuth2 Client Credentials flow → top 300 games (6 pages of 50) →
 per-game top stream viewers → upload raw/twitch/TopGames/YYYYMMDD/extract.json
 """
 
@@ -89,7 +89,7 @@ def _get_access_token(client_id: str, client_secret: str) -> str:
     return token
 
 
-def _fetch_top_games(client_id: str, token: str, pages: int = 2) -> list[dict]:
+def _fetch_top_games(client_id: str, token: str, pages: int = 6) -> list[dict]:
     """Fetch top games (50 per page × pages)."""
     headers = {"Client-ID": client_id, "Authorization": f"Bearer {token}"}
     games = []
@@ -153,7 +153,7 @@ def extract_twitch(**kwargs) -> dict:
     client_id, client_secret = _load_credentials()
     token = _get_access_token(client_id, client_secret)
 
-    games = _fetch_top_games(client_id, token, pages=2)
+    games = _fetch_top_games(client_id, token, pages=6)
 
     # Enrich each game with viewer count from top stream
     enriched = []
